@@ -20,13 +20,13 @@ Setup:
     pip install -r requirements-extract.txt
 
 Two input modes:
-  --mode folder   Videos organized as <root>/<label>/*.mp4 (simplest â€”
+  --mode folder   Videos organized as <root>/<label>/*.mp4 (simplest —
                   use this for your own downloaded clips organized by
                   sign name).
   --mode csv      A CSV with a path column and a label column (for
                   FSL-105's train.csv/test.csv + labels.csv layout).
                   Check the actual FSL-105 CSV headers after downloading
-                  it â€” --path-col/--label-col/--labels-csv let you match
+                  it — --path-col/--label-col/--labels-csv let you match
                   whatever they turn out to be without editing the script.
 
 Examples:
@@ -75,7 +75,7 @@ DEFAULT_STRIDE = 6
 # Same effective capture rate the live app runs at (see TARGET_FPS in
 # useHolisticPipeline.ts). Videos are resampled to this so a sign performed
 # at, say, 30fps in a source clip produces roughly the same number of
-# frames-per-second-of-real-motion as a live 24fps webcam capture â€” without
+# frames-per-second-of-real-motion as a live 24fps webcam capture — without
 # this, a clip's motion would look artificially fast or slow relative to
 # what the model sees during live inference.
 TARGET_FPS = 8
@@ -444,7 +444,7 @@ def run_image_mode(input_dir: str, output_dir: str, require_pose: bool = True) -
                     frame, landmarker, ts
                 )
             except Exception as e:  # one bad photo must not kill the batch
-                print(f"  [{i+1}/{len(paths)}] {img_path.name}: DETECTION FAILED â€” {e}")
+                print(f"  [{i+1}/{len(paths)}] {img_path.name}: DETECTION FAILED — {e}")
                 skipped += 1
                 continue
 
@@ -619,7 +619,7 @@ def merge_datasets(*paths: str, out: str) -> None:
         ):
             raise ValueError(
                 f"{path} has different featureDim/windowSize/stride than the "
-                "first dataset â€” regenerate one of them so they match before merging."
+                "first dataset — regenerate one of them so they match before merging."
             )
         merged["samples"].extend(data["samples"])
     merged["labels"] = sorted(set(s["label"] for s in merged["samples"]))

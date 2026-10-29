@@ -1,0 +1,26 @@
+{
+  "labels": [
+    "A",
+    "AGAIN",
+    "B",
+    "C",
+    "CARD",
+    "CASH",
+    "COIN",
+    "D",
+    "E",
+    "EIGHT",
+    "F",
+    "FIVE",
+    "FOUR",
+    "G",
+    "GRANDMA",
+    "H",
+    "I",
+    "LOVE",
+    "ONE",
+    "YOU"
+  ],
+  "featureDim": 345,
+  "windowSize": 16
+}
