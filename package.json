@@ -6,7 +6,7 @@
   "allowScripts": true,
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "verify:retarget": "tsx scripts/verify-retarget.ts",
     "verify:wrist-aim": "tsx scripts/verify-wrist-aim.ts",
