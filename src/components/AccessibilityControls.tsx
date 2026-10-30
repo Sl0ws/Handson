@@ -5,6 +5,8 @@ interface Props {
   onTextSize: (size: "sm" | "base" | "lg") => void;
   highContrast: boolean;
   onHighContrast: (on: boolean) => void;
+  lowPowerMode: boolean;
+  onLowPowerMode: (on: boolean) => void;
 }
 
 /**
@@ -50,7 +52,7 @@ const chip =
   "active:translate-x-[1px] active:translate-y-[1px] active:shadow-[var(--shadow-pressed)] " +
   "motion-reduce:transition-none motion-reduce:hover:translate-y-0";
 
-export function AccessibilityControls({ textSize, onTextSize, highContrast, onHighContrast }: Props) {
+export function AccessibilityControls({ textSize, onTextSize, highContrast, onHighContrast, lowPowerMode, onLowPowerMode }: Props) {
   return (
     <section
       aria-label="Accessibility settings"
@@ -99,6 +101,21 @@ export function AccessibilityControls({ textSize, onTextSize, highContrast, onHi
             aria-hidden="true"
           />
           {highContrast ? "Contrast: high" : "Contrast: normal"}
+        </button>
+        <button
+          onClick={() => onLowPowerMode(!lowPowerMode)}
+          className={`${chip} px-3 py-1.5 text-[11px] ${
+            lowPowerMode
+              ? "bg-[var(--sun)] text-[var(--ink)]"
+              : "bg-[var(--paper-sunken)] text-[var(--ink)] hover:bg-[var(--coral)]"
+          }`}
+          aria-pressed={lowPowerMode}
+        >
+          <span
+            className="size-2.5 border-[var(--border-w-thin)] border-[var(--ink)] bg-current"
+            aria-hidden="true"
+          />
+          {lowPowerMode ? "Low power: on" : "Low power: off"}
         </button>
       </div>
     </section>

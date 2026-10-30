@@ -6,6 +6,7 @@ interface UseCameraOptions {
   width?: number;
   height?: number;
   facingMode?: "user" | "environment";
+  lowPowerMode?: boolean;
 }
 
 interface UseCameraReturn {
@@ -32,7 +33,7 @@ interface UseCameraReturn {
  *   must call track.stop() on each track.
  */
 export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
-  const { width = 640, height = 480, facingMode = "user" } = options;
+  const { width = 424, height = 240, facingMode = "user", lowPowerMode = false } = options;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -86,10 +87,12 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
           width: { ideal: width },
           height: { ideal: height },
           facingMode,
-          // Cap the source frame rate at the camera level so we're not
-          // decoding 30/60fps frames just to throw 6/36 of them away
-          // downstream. Cheaper than throttling after the fact.
-          frameRate: { ideal: 24, max: 30 },
+          // Cap the source frame rate so we're not decoding high-FPS frames
+          // just to throw most of them away downstream. Low-power mode caps
+          // even harder for cheap devices.
+          frameRate: lowPowerMode
+            ? { ideal: 10, max: 15 }
+            : { ideal: 15, max: 20 },
         },
         audio: false,
       });

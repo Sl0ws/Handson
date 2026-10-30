@@ -85,12 +85,6 @@ const FPS_DOWNGRADE_THRESHOLD = 8;
 const LOW_FPS_SAMPLE_INTERVAL_MS = 800;
 const LOW_FPS_CONSECUTIVE_SAMPLES = 5;
 
-function readDownscaleFlag(): boolean {
-  if (typeof window === "undefined") return false;
-  const v = new URLSearchParams(window.location.search).get("downscale");
-  return v === "1" || v === "true";
-}
-
 /**
  * The application proper. Every screen, pipeline and view lives inside this
  * component and is only ever mounted for a signed-in user — the gate below is
@@ -100,6 +94,7 @@ function HandSonApp() {
   const { user } = useAuth();
   const latestFrameRef = useRef<NormalizedFrame | null>(null);
   const featureDebugLastRef = useRef<number>(0);
+  const lowPowerModeRef = useRef<boolean>(false);
 
   // PHASE 10: the exact Float32Array handed to the avatar, plus a monotonic
   // counter. The counter is what lets the render loop retarget at most once per
@@ -129,6 +124,7 @@ function HandSonApp() {
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.15);
   const [highContrast, setHighContrast] = useState(false);
   const [showAvatar, setShowAvatar] = useState(true);
+  const [lowPowerMode, setLowPowerMode] = useState(false);
   const avatarLandmarksRef = useRef<Float32Array | null>(null);
   // PHASE 31: hands included, matching the recorded path in dataLoader.ts. Live
 // capture is the noisiest source of hand landmarks (webcam tracking), and the
@@ -224,7 +220,7 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
   
   const confidence = isMobile ? CONFIDENCE_PRESETS.balanced : CONFIDENCE_PRESETS.permissive;
   
-  const { ready, error, fps, attachVideo, attachCanvas, setInferenceSize } = useHolisticPipeline(handleLandmarks, { confidence });
+  const { ready, error, fps, attachVideo, attachCanvas, setInferenceSize } = useHolisticPipeline(handleLandmarks, { confidence, lowPowerMode: lowPowerModeRef.current });
 
   // PHASE 10 â€” live vs recorded source for the avatar.
   //
@@ -238,15 +234,17 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
   // or stops, with no new affordance for the user to discover.
   const avatarLiveEnabled = ready && !error && view === "translate";
 
-  const [tierIndex, setTierIndex] = useState<number>(0);
+  const [tierIndex, setTierIndex] = useState<number>(isMobile ? 1 : 0);
   const lowFpsCountRef = useRef<number>(0);
   const lastFpsEvalRef = useRef<number>(0);
-  const downgradeRef = useRef<boolean>(readDownscaleFlag());
-
   const resolution = RESOLUTION_TIERS[tierIndex];
-  const tierInferenceSize = resolution.inferenceWidth && resolution.inferenceHeight && downgradeRef.current
+  const tierInferenceSize = resolution.inferenceWidth && resolution.inferenceHeight
     ? { width: resolution.inferenceWidth, height: resolution.inferenceHeight }
     : null;
+
+  useEffect(() => {
+    lowPowerModeRef.current = lowPowerMode;
+  }, [lowPowerMode]);
 
   useEffect(() => { setInferenceSize(tierInferenceSize); }, [tierInferenceSize, setInferenceSize]);
 
@@ -267,6 +265,10 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
     if (lowFpsCountRef.current >= LOW_FPS_CONSECUTIVE_SAMPLES) {
       lowFpsCountRef.current = 0;
       setTierIndex((i) => Math.min(i + 1, RESOLUTION_TIERS.length - 1));
+      // If we've hit the lowest tier and FPS is still bad, switch to low power mode
+      if (tierIndex >= RESOLUTION_TIERS.length - 1 && fps < FPS_DOWNGRADE_THRESHOLD / 2) {
+        lowPowerModeRef.current = true;
+      }
     }
   }, [fps, tierIndex]);
 
@@ -286,7 +288,7 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
         items={[
           { label: "Camera", ready, error },
           { label: "Model", ready: inference.ready, error: inference.error },
-          { label: `Tier ${tierIndex + 1}/${RESOLUTION_TIERS.length}`, ready: true, tooltip: `Resolution tier ${tierIndex + 1} of ${RESOLUTION_TIERS.length}. Auto-downgrades when fps stays below ${FPS_DOWNGRADE_THRESHOLD} for ${LOW_FPS_CONSECUTIVE_SAMPLES}s.${tierInferenceSize ? " Inference downscale " + tierInferenceSize.width + "x" + tierInferenceSize.height + " (UNVALIDATED â€” ?downscale=0 to disable)" : " No inference downscale."}` },
+          { label: `Tier ${tierIndex + 1}/${RESOLUTION_TIERS.length}`, ready: true, tooltip: `Resolution tier ${tierIndex + 1} of ${RESOLUTION_TIERS.length}. Auto-downgrades when fps stays below ${FPS_DOWNGRADE_THRESHOLD} for ${LOW_FPS_CONSECUTIVE_SAMPLES}s.${tierInferenceSize ? " Inference downscale " + tierInferenceSize.width + "x" + tierInferenceSize.height : " No inference downscale."}${lowPowerModeRef.current ? " Low-power mode: CPU delegate, adaptive frame skip." : ""}` },
         ]}
         fps={fps}
         offline={offline}
@@ -338,7 +340,7 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
                 </button>
                 <p className="text-sm font-bold text-teal-deep">Predict Mode</p>
               </div>
-              <CameraPreview onVideoReady={attachVideo} onCanvasReady={attachCanvas} resolution={resolution} showFlipButton />
+              <CameraPreview onVideoReady={attachVideo} onCanvasReady={attachCanvas} resolution={resolution} showFlipButton lowPowerMode={lowPowerMode} />
             </motion.section>
             <motion.aside
               className={`space-y-4 ${inference.ready ? "" : "opacity-50 pointer-events-none"}`}
@@ -490,12 +492,14 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
           </motion.div>
         )}
         <div className="mt-6 flex justify-end">
-          <AccessibilityControls
-            textSize={textSize}
-            onTextSize={setTextSize}
-            highContrast={highContrast}
-            onHighContrast={setHighContrast}
-          />
+        <AccessibilityControls
+          textSize={textSize}
+          onTextSize={setTextSize}
+          highContrast={highContrast}
+          onHighContrast={setHighContrast}
+          lowPowerMode={lowPowerMode}
+          onLowPowerMode={setLowPowerMode}
+        />
         </div>
 
         {/* No auth sub-screen here any more: HandSonApp only mounts for a

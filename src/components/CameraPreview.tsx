@@ -9,9 +9,10 @@ interface CameraPreviewProps {
   resolution?: { width: number; height: number };
   className?: string;
   showFlipButton?: boolean;
+  lowPowerMode?: boolean;
 }
 
-const DEFAULT_RESOLUTION = { width: 960, height: 540 };
+const DEFAULT_RESOLUTION = { width: 424, height: 240 };
 
 /**
  * The camera panel — the focal element of Predict mode.
@@ -24,8 +25,8 @@ const DEFAULT_RESOLUTION = { width: 960, height: 540 };
  *
  * Depth is cast down-right like an inked print. No blur, ever.
  */
-export function CameraPreview({ onVideoReady, onCanvasReady, resolution = DEFAULT_RESOLUTION, className, showFlipButton = false }: CameraPreviewProps) {
-  const { videoRef, status, error, start, stop } = useCamera({ width: resolution.width, height: resolution.height });
+export function CameraPreview({ onVideoReady, onCanvasReady, resolution = DEFAULT_RESOLUTION, className, showFlipButton = false, lowPowerMode = false }: CameraPreviewProps) {
+  const { videoRef, status, error, start, stop } = useCamera({ width: resolution.width, height: resolution.height, lowPowerMode });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [aspectRatio, setAspectRatio] = useState(`${resolution.width} / ${resolution.height}`);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");

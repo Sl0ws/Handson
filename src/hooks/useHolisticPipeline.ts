@@ -6,8 +6,8 @@ import { HolisticSmoother } from "../mediapipe/smoothing";
 import type { SmoothedHolisticResult } from "../mediapipe/smoothing";
 import type { LandmarksResult } from "../mediapipe/types";
 
-const TARGET_FPS = 24;
-const FRAME_INTERVAL_MS = 1000 / TARGET_FPS; // ~41.667ms
+const TARGET_FPS = 15;
+const FRAME_INTERVAL_MS = 1000 / TARGET_FPS; // ~66.67ms
 
 const MEDIAPIPE_VERSION = "0.10.20";
 const MEDIAPIPE_WASM_BASE_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;
@@ -16,6 +16,7 @@ interface PipelineState {
   ready: boolean;
   error: string | null;
   fps: number;
+  lowPowerMode: boolean;
 }
 
 /**
@@ -48,6 +49,13 @@ export interface HolisticPipelineOptions {
    * training data is worthless if the hands keep dropping out.
    */
   confidence?: { pose: number; face: number; hand: number };
+  /**
+   * When true, skips the GPU delegate attempt (CPU-only, slower but
+   * more compatible) and runs the detection loop at the lowest FPS.
+   * Intended for cheap/low-end devices where WebGL2 is unreliable
+   * or the GPU delegate causes more stalls than it saves.
+   */
+  lowPowerMode?: boolean;
 }
 
 export function useHolisticPipeline(
@@ -73,6 +81,7 @@ export function useHolisticPipeline(
     ready: false,
     error: null,
     fps: 0,
+    lowPowerMode: false,
   });
 
   const prevRawRef = useRef<HolisticLandmarkerResult | null>(null);
@@ -82,6 +91,8 @@ export function useHolisticPipeline(
 
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const inferenceSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const lowPowerModeRef = useRef(false);
+  const detectionTimeRef = useRef<number>(0);
 
   const getInferenceSource = useCallback((video: HTMLVideoElement): HTMLVideoElement | HTMLCanvasElement => {
     const size = inferenceSizeRef.current;
@@ -152,6 +163,8 @@ export function useHolisticPipeline(
   // module constant at every call site, so this effect re-runs only
   // when the caller actually changes preset.
   const confidence = options.confidence;
+  const lowPowerMode = options.lowPowerMode ?? false;
+  lowPowerModeRef.current = lowPowerMode;
   useEffect(() => {
     let cancelled = false;
 
@@ -174,16 +187,20 @@ export function useHolisticPipeline(
             minHandLandmarksConfidence: confidence?.hand ?? 0.7,
           });
 
-        // GPU delegate is ~2-3x faster than CPU for the holistic model, which is
-        // what makes 16-18 FPS reachable on a mid-range laptop. It is not
-        // universally available (older GPUs / blocked WebGL2), so fall back to
-        // CPU rather than failing the whole pipeline.
+        // Low-power mode skips the GPU delegate entirely: on cheap devices
+        // the WebGL2 context creation + GPU memory upload often costs more
+        // than it saves, and can fail outright on older integrated GPUs.
+        // CPU delegate is more predictable (if slower) on those devices.
         let landmarker: HolisticLandmarker;
-        try {
-          landmarker = await createLandmarker("GPU");
-        } catch (gpuErr) {
-          console.warn("[holistic] GPU delegate unavailable, falling back to CPU:", gpuErr);
+        if (lowPowerMode) {
           landmarker = await createLandmarker("CPU");
+        } else {
+          try {
+            landmarker = await createLandmarker("GPU");
+          } catch (gpuErr) {
+            console.warn("[holistic] GPU delegate unavailable, falling back to CPU:", gpuErr);
+            landmarker = await createLandmarker("CPU");
+          }
         }
 
         if (cancelled) {
@@ -192,7 +209,7 @@ export function useHolisticPipeline(
         }
 
         landmarkerRef.current = landmarker;
-        setState((s) => ({ ...s, ready: true }));
+        setState((s) => ({ ...s, ready: true, lowPowerMode }));
       } catch (err) {
         if (cancelled) return;
         setState((s) => ({
@@ -209,7 +226,7 @@ export function useHolisticPipeline(
       landmarkerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confidence]);
+  }, [confidence, lowPowerMode]);
 
   // --- Capture + detect loop ------------------------------------------------
   //
@@ -232,8 +249,17 @@ export function useHolisticPipeline(
     const landmarker = landmarkerRef.current;
     const video = videoElRef.current;
 
+    // Adaptive skip: if the last detection took longer than the frame
+    // interval, skip this frame to let the device catch up. Prevents
+    // the detection loop from falling further behind on slow hardware.
+    const skipFrame =
+      lowPowerModeRef.current &&
+      detectionTimeRef.current > 0 &&
+      detectionTimeRef.current > FRAME_INTERVAL_MS * 1.5;
+
     if (
       accumulatorRef.current >= FRAME_INTERVAL_MS &&
+      !skipFrame &&
       landmarker &&
       video &&
       video.readyState >= 2 &&
@@ -243,9 +269,11 @@ export function useHolisticPipeline(
       lastVideoTimeRef.current = video.currentTime;
 
       try {
+        const detectStart = performance.now();
         const source = getInferenceSource(video);
         const ts = performance.now();
         const result = landmarker.detectForVideo(source, ts);
+        detectionTimeRef.current = performance.now() - detectStart;
 
         if (!smootherRef.current) smootherRef.current = new HolisticSmoother();
         smootherRef.current.update(result, ts);
