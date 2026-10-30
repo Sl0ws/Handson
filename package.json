@@ -36,7 +36,9 @@
     "verify:ui": "tsx scripts/verify-ui-phase1.ts",
     "verify:camera": "tsx scripts/verify-camera.ts",
     "verify:frame-quality": "tsx scripts/verify-frame-quality.ts",
-    "verify:videocapture": "tsx scripts/verify-video-capture.ts"
+    "verify:videocapture": "tsx scripts/verify-video-capture.ts",
+    "train": "python training/train.py --dataset fsl_dataset.json --out training/model_out",
+    "train:convert": "bash training/step_3_convert.sh"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "0.10.20",
@@ -53,6 +55,7 @@
     "three": "^0.186.0"
   },
   "devDependencies": {
+    "@tensorflow/tfjs-node": "^4.22.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-basic-ssl": "^1.2.0",

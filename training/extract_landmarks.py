@@ -61,16 +61,20 @@ LEFT_SHOULDER = 11
 RIGHT_SHOULDER = 12
 
 # --- Mirrors features/featureSelect.ts -------------------------------------
+# Frontend inference uses RIGHT-HAND ONLY features (63 dims). Training data
+# must match exactly. We still detect pose+face+all-hands for normalization
+# (shoulder-anchor anchor needs pose), but the output feature vector is
+# right-hand only to mirror featureSelect.ts.
 LIP_LANDMARK_INDICES = [
     61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317,
     14, 87, 178, 88, 95, 185, 40, 39, 37, 0, 267, 269, 270, 409, 415, 310, 311,
     312, 13, 82, 81, 42, 183, 78,
 ]
-FEATURE_DIM = (POSE_COUNT + HAND_COUNT * 2 + len(LIP_LANDMARK_INDICES)) * 3
+FEATURE_DIM = HAND_COUNT * 3  # 63 — right hand only, mirrors featureSelect.ts
 
 # --- Mirrors features/windowBuffer.ts --------------------------------------
 WINDOW_SIZE = 16
-DEFAULT_STRIDE = 6
+DEFAULT_STRIDE = 2  # matches frontend windowBuffer.ts DEFAULT_STRIDE
 
 # Same effective capture rate the live app runs at (see TARGET_FPS in
 # useHolisticPipeline.ts). Videos are resampled to this so a sign performed
@@ -208,19 +212,14 @@ def bbox_diagonal(vector: np.ndarray) -> float:
 
 
 def select_features(vector: np.ndarray) -> np.ndarray:
-    """Mirrors features/featureSelect.ts's selectFeatures."""
-    out = np.zeros(FEATURE_DIM, dtype=np.float32)
-    o = 0
-    out[o : o + POSE_COUNT * 3] = vector[POSE_OFFSET : POSE_OFFSET + POSE_COUNT * 3]
-    o += POSE_COUNT * 3
-    out[o : o + HAND_COUNT * 3] = vector[LEFT_HAND_OFFSET : LEFT_HAND_OFFSET + HAND_COUNT * 3]
-    o += HAND_COUNT * 3
-    out[o : o + HAND_COUNT * 3] = vector[RIGHT_HAND_OFFSET : RIGHT_HAND_OFFSET + HAND_COUNT * 3]
-    o += HAND_COUNT * 3
-    for idx in LIP_LANDMARK_INDICES:
-        base = FACE_OFFSET + idx * 3
-        out[o : o + 3] = vector[base : base + 3]
-        o += 3
+    """Mirrors features/featureSelect.ts's selectFeatures — right hand only.
+
+    Takes the full 345-dim packed vector (pose[99] + leftHand[63] +
+    rightHand[63] + face[1404]) and returns just the 63 right-hand floats
+    at RIGHT_HAND_OFFSET..RIGHT_HAND_OFFSET+63.
+    """
+    out = np.zeros(HAND_COUNT * 3, dtype=np.float32)
+    out[:] = vector[RIGHT_HAND_OFFSET : RIGHT_HAND_OFFSET + HAND_COUNT * 3]
     return out
 
 
