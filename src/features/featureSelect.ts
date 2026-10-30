@@ -16,7 +16,7 @@ export const FEATURE_DIM = 21 * 3; // 63
 export function selectFeatures(vector: Float32Array): Float32Array {
   const out = new Float32Array(63);
   out.set(
-    new Float32Array(vector.buffer, RIGHT_HAND_OFFSET * 4, 63 * 4)
+    new Float32Array(vector.buffer, RIGHT_HAND_OFFSET * 4, 63)
   );
   return out;
 }
