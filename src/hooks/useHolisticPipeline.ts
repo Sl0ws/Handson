@@ -88,6 +88,7 @@ export function useHolisticPipeline(
   const currRawRef = useRef<HolisticLandmarkerResult | null>(null);
   const prevTsRef = useRef<number>(-1);
   const currTsRef = useRef<number>(-1);
+  const lastDetectTimeRef = useRef<number>(0);
 
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const inferenceSizeRef = useRef<{ width: number; height: number } | null>(null);
@@ -257,16 +258,24 @@ export function useHolisticPipeline(
       detectionTimeRef.current > 0 &&
       detectionTimeRef.current > FRAME_INTERVAL_MS * 1.5;
 
+    // Fire detection when enough time has passed AND either the video
+    // has advanced (normal case) or we've been waiting too long without
+    // a currentTime change (video may be stalled but still producing
+    // frames). This prevents 0-frame recordings on devices where the
+    // video element doesn't advance currentTime reliably.
+    const timeBasedTrigger = now - lastDetectTimeRef.current >= FRAME_INTERVAL_MS;
+
     if (
       accumulatorRef.current >= FRAME_INTERVAL_MS &&
       !skipFrame &&
       landmarker &&
       video &&
       video.readyState >= 2 &&
-      video.currentTime !== lastVideoTimeRef.current
+      (video.currentTime !== lastVideoTimeRef.current || timeBasedTrigger)
     ) {
       accumulatorRef.current -= FRAME_INTERVAL_MS;
       lastVideoTimeRef.current = video.currentTime;
+      lastDetectTimeRef.current = now;
 
       try {
         const detectStart = performance.now();
