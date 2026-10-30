@@ -1,5 +1,5 @@
 /**
- * HANDSON AUTH - Mock implementation without Firebase
+ * HANDSON AUTH - Firebase Authentication
  */
 import {
   createContext,
@@ -10,7 +10,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { isFirebaseConfigured } from "../lib/firebase";
+import {
+  isFirebaseConfigured,
+  getFirebaseAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  type User,
+  type Auth,
+} from "../lib/firebase";
 
 export interface AuthUser {
   id: string;
@@ -34,35 +43,120 @@ export interface AuthService {
 }
 
 export function friendlyAuthError(err: unknown): string {
+  if (err instanceof Error) {
+    const code = (err as any).code;
+    switch (code) {
+      case "auth/wrong-password":
+      case "auth/invalid-email":
+      case "auth/user-not-found":
+        return "Invalid email or password.";
+      case "auth/email-already-in-use":
+        return "An account with this email already exists.";
+      case "auth/weak-password":
+        return "Password is too weak.";
+      case "auth/too-many-requests":
+        return "Too many failed attempts. Try again later.";
+      case "auth/network-request-failed":
+        return "Network error. Check your connection.";
+      default:
+        return err.message || "Auth error.";
+    }
+  }
   return "Auth not available.";
 }
 
 export class FirebaseAuthService implements AuthService {
-  readonly isSecureBackend = false;
+  readonly isSecureBackend = true;
+  private auth: Auth;
+
+  constructor() {
+    this.auth = getFirebaseAuth();
+  }
 
   async signIn(email: string, password: string): Promise<AuthResult> {
-    throw new Error("Auth not available.");
+    const userCredential = await signInWithEmailAndPassword(
+      this.auth,
+      email,
+      password
+    );
+    const u = userCredential.user;
+    return {
+      user: {
+        id: u.uid,
+        name: u.displayName || u.email!.split("@")[0],
+        email: u.email!,
+        createdAt: u.metadata.creationTime
+          ? new Date(u.metadata.creationTime).getTime()
+          : Date.now(),
+      },
+    };
   }
 
   async signUp(name: string, email: string, password: string): Promise<AuthResult> {
-    throw new Error("Auth not available.");
+    const userCredential = await createUserWithEmailAndPassword(
+      this.auth,
+      email,
+      password
+    );
+    const u = userCredential.user;
+    await u.updateProfile({ displayName: name });
+    return {
+      user: {
+        id: u.uid,
+        name,
+        email: u.email!,
+        createdAt: u.metadata.creationTime
+          ? new Date(u.metadata.creationTime).getTime()
+          : Date.now(),
+      },
+    };
   }
 
   async signOut(): Promise<void> {
-    return;
+    await signOut(this.auth);
   }
 
   async restore(): Promise<AuthUser | null> {
-    return null;
+    return new Promise((resolve) => {
+      const unsub = onAuthStateChanged(this.auth, (u) => {
+        unsub();
+        if (u) {
+          resolve({
+            id: u.uid,
+            name: u.displayName || u.email!.split("@")[0],
+            email: u.email!,
+            createdAt: u.metadata.creationTime
+              ? new Date(u.metadata.creationTime).getTime()
+              : Date.now(),
+          });
+        } else {
+          resolve(null);
+        }
+      });
+    });
   }
 
   async requestPasswordReset(email: string): Promise<void> {
-    return;
+    // Firebase: use sendPasswordResetEmail
+    const { sendPasswordResetEmail } = await import("firebase/auth");
+    await sendPasswordResetEmail(this.auth, email);
   }
 
   subscribe(listener: (user: AuthUser | null) => void): () => void {
-    listener(null);
-    return () => {};
+    return onAuthStateChanged(this.auth, (u) => {
+      if (u) {
+        listener({
+          id: u.uid,
+          name: u.displayName || u.email!.split("@")[0],
+          email: u.email!,
+          createdAt: u.metadata.creationTime
+            ? new Date(u.metadata.creationTime).getTime()
+            : Date.now(),
+        });
+      } else {
+        listener(null);
+      }
+    });
   }
 }
 
