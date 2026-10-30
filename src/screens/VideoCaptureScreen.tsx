@@ -202,28 +202,33 @@ export function VideoCaptureScreen({
   const stopRecordingRef = useRef<() => void>(() => {});
 
   const handleStudioFrame = useCallback((msg: LandmarksResult) => {
-    const normalized = normalizeLandmarks(msg);
-    const features = selectFeatures(normalized.vector);
-    mimicRef.current = { vector: features, seq: mimicSeqRef.current++ };
+    try {
+      const normalized = normalizeLandmarks(msg);
+      const features = selectFeatures(normalized.vector);
+      mimicRef.current = { vector: features, seq: mimicSeqRef.current++ };
 
-    const rec = recordBufferRef.current;
-    if (!rec) return;
-    rec.frames.push(...features);
-    rec.coverage.frames++;
-    if (msg.hasPose) rec.coverage.pose++;
-    if (msg.hasLeftHand) rec.coverage.leftHand++;
-    if (msg.hasRightHand) rec.coverage.rightHand++;
-    if (msg.hasFace) rec.coverage.face++;
+      const rec = recordBufferRef.current;
+      if (!rec) return;
+      rec.frames.push(...features);
+      rec.coverage.frames++;
+      if (msg.hasPose) rec.coverage.pose++;
+      if (msg.hasLeftHand) rec.coverage.leftHand++;
+      if (msg.hasRightHand) rec.coverage.rightHand++;
+      if (msg.hasFace) rec.coverage.face++;
 
-    recordCountRef.current++;
-    // 4Hz UI update — a setState per inference tick would re-render
-    // the whole tree 24x/second.
-    if (recordCountRef.current % 6 === 0) {
-      setRecordFrames(recordCountRef.current);
-      setRecordCoverage({ ...rec.coverage });
-    }
-    if (performance.now() - rec.startMs >= MAX_RECORD_SEC * 1000) {
-      stopRecordingRef.current();
+      recordCountRef.current++;
+      // 4Hz UI update — a setState per inference tick would re-render
+      // the whole tree 24x/second.
+      if (recordCountRef.current % 6 === 0) {
+        setRecordFrames(recordCountRef.current);
+        setRecordCoverage({ ...rec.coverage });
+      }
+      if (performance.now() - rec.startMs >= MAX_RECORD_SEC * 1000) {
+        stopRecordingRef.current();
+      }
+    } catch (err) {
+      console.error("[studio-frame] detection callback failed:", err);
+      setError(err instanceof Error ? err.message : "Detection callback failed");
     }
   }, []);
 

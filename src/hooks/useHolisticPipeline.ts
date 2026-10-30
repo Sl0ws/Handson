@@ -270,7 +270,7 @@ export function useHolisticPipeline(
       !skipFrame &&
       landmarker &&
       video &&
-      video.readyState >= 2 &&
+      video.readyState >= 1 &&
       (video.currentTime !== lastVideoTimeRef.current || timeBasedTrigger)
     ) {
       accumulatorRef.current -= FRAME_INTERVAL_MS;
