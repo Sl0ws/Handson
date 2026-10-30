@@ -25,7 +25,6 @@ export default defineConfig({
         // heavy vendors independently of app-code changes.
         manualChunks: {
           react: ["react", "react-dom"],
-          firebase: ["firebase/app", "firebase/auth"],
           three: ["three"],
           tfjs: ["@tensorflow/tfjs", "@tensorflow/tfjs-backend-webgl"],
           mediapipe: ["@mediapipe/tasks-vision"],
