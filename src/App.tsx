@@ -144,10 +144,10 @@ function HandSonApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const avatarLandmarksRef = useRef<Float32Array | null>(null);
   // PHASE 31: hands included, matching the recorded path in dataLoader.ts. Live
-// capture is the noisiest source of hand landmarks (webcam tracking), and the
-// window-3 average removes 67% of the hand stream's high-frequency content at
-// 0-1 frames of group delay. Lower limbs stay filtered as in Phase 24.
-const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
+  // capture is the noisiest source of hand landmarks (webcam tracking), and the
+  // window-3 average removes 67% of the hand stream's high-frequency content at
+  // 0-1 frames of group delay. Lower limbs stay filtered as in Phase 24.
+  const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
   const [offline, setOffline] = useState<boolean>(
     typeof navigator !== "undefined" ? !navigator.onLine : false
   );
