@@ -1277,12 +1277,18 @@ bone.quaternion.normalize();
 
       try {
         controls.update();
-        const pp = particles.geometry.attributes.position.array as Float32Array;
-        for (let i = 0; i < particleCount; i++) {
-          pp[i * 3 + 1] += 0.003;
-          if (pp[i * 3 + 1] > 2) pp[i * 3 + 1] = -1;
+        // Only animate particles when something is actively playing —
+        // during idle breathing the particles can stay static, saving
+        // a per-frame geometry upload (needsUpdate = true forces a GPU
+        // buffer re-upload every frame).
+        if (isPlayingRef.current) {
+          const pp = particles.geometry.attributes.position.array as Float32Array;
+          for (let i = 0; i < particleCount; i++) {
+            pp[i * 3 + 1] += 0.003;
+            if (pp[i * 3 + 1] > 2) pp[i * 3 + 1] = -1;
+          }
+          particles.geometry.attributes.position.needsUpdate = true;
         }
-        particles.geometry.attributes.position.needsUpdate = true;
         composer.render();
       } catch (e) {
         console.error('[avatar] render error:', e);
@@ -1328,19 +1334,6 @@ bone.quaternion.normalize();
     });
     resizeObserver.observe(container);
 
-    const onWindowResize = () => {
-      if (!container) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight || 400;
-      if (w === 0 || h === 0) return;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      composer.setSize(w, h);
-      bloomPass.setSize(w, h);
-    };
-    window.addEventListener("resize", onWindowResize);
-
     controls.addEventListener("start", () => { controls.autoRotate = false; });
     animate();
 
@@ -1350,7 +1343,6 @@ bone.quaternion.normalize();
       isRunning = false;
       cancelAnimationFrame(animationIdRef.current);
       resizeObserver.disconnect();
-      window.removeEventListener("resize", onWindowResize);
       cleanupPromise.then(fn => fn?.());
       if (avatarRef.current) {
         avatarRef.current.model.traverse((child) => {

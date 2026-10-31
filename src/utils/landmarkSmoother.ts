@@ -109,8 +109,12 @@ export class LandmarkSmoother {
    * Smooth a raw landmark buffer in-place. The buffer contains
    * all landmark groups packed sequentially per the Hand-Skeleton
    * packed layout (see mediapipe/types.ts).
+   *
+   * If `out` is provided (a Float32Array of at least `buffer.length`),
+   * it is reused instead of allocating a new one. The caller must copy
+   * the result if it needs to persist beyond the next smooth() call.
    */
-  smooth(buffer: Float32Array): Float32Array {
+  smooth(buffer: Float32Array, out?: Float32Array): Float32Array {
     // PHASE 8 FIX: the history used to be discarded every windowSize frames
     // (`if (this.count >= this.windowSize) { clear; index = 0; count = 0 }`).
     // Because `index` already wraps via modulo, that guard served no purpose
@@ -121,11 +125,7 @@ export class LandmarkSmoother {
     // unfiltered. The ring buffer must simply keep its last windowSize frames.
     this.ensureRing(buffer.length);
 
-    // `result` IS returned to the caller, so it must stay a fresh allocation --
-    // reusing a member buffer here would hand the caller an alias that the next
-    // call overwrites. The history copy below is the per-frame garbage that is
-    // actually avoidable.
-    const result = new Float32Array(buffer.length);
+    const result = out ?? new Float32Array(buffer.length);
     result.set(buffer);
 
     this.ring[this.index].set(buffer);

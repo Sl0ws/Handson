@@ -35,7 +35,6 @@ import {
   hasSeenTour,
   markTourSeen,
 } from "./components/OnboardingTour";
-
 const pageVariants = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
@@ -69,6 +68,8 @@ const FEATURE_DEBUG_INTERVAL_MS = 1000;
 const INFERENCE_SAMPLE_INTERVAL_MS = 33;
 
 
+
+
 interface ResolutionTier {
   width: number;
   height: number;
@@ -80,12 +81,20 @@ const RESOLUTION_TIERS: readonly ResolutionTier[] = [
    { width: 640, height: 480, inferenceWidth: 320, inferenceHeight: 240 },
    { width: 424, height: 240, inferenceWidth: 212, inferenceHeight: 120 },
    { width: 320, height: 240, inferenceWidth: 160, inferenceHeight: 120 },
- ];
+];
 
 const FPS_DOWNGRADE_THRESHOLD = 25;
 const LOW_FPS_SAMPLE_INTERVAL_MS = 800;
 const LOW_FPS_CONSECUTIVE_SAMPLES = 5;
 
+/** Reusable scratch buffers so the per-frame pipeline doesn't allocate
+ *  new Float32Arrays on every detection. The avatar path copies the
+ *  normalized vector when storing it (it must persist across animation
+ *  frames); the inference path reads immediately so reuse is safe. */
+const normalizedVecRef = useRef<Float32Array | null>(null);
+const inferenceVecRef = useRef<Float32Array | null>(null);
+const featuresVecRef = useRef<Float32Array | null>(null);
+const smoothBufRef = useRef<Float32Array | null>(null);
 /**
  * The application proper. Every screen, pipeline and view lives inside this
  * component and is only ever mounted for a signed-in user — the gate below is
@@ -192,14 +201,21 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
     // features matching the training pipeline (extract_landmarks.py does NOT
     // smooth, so feeding smoothed data to the model creates a temporal
     // domain mismatch that degrades accuracy).
-    const smoothedBuf = landmarkSmootherRef.current.smooth(new Float32Array(msg.buffer));
-    // Avatar live path: smoothed + normalized
-    const normalized = normalizeLandmarks({ ...msg, buffer: smoothedBuf.buffer });
-    avatarLiveFrameRef.current = { vector: normalized.vector, seq: liveSeqCounterRef.current++ };
+    const smoothedBuf = landmarkSmootherRef.current.smooth(new Float32Array(msg.buffer), smoothBufRef.current ?? undefined);
+    if (!smoothBufRef.current) smoothBufRef.current = smoothedBuf;
+    // Avatar live path: smoothed + normalized. Reuse a scratch buffer for
+    // normalization, then copy into the ref so it persists across frames.
+    const normalized = normalizeLandmarks({ ...msg, buffer: smoothedBuf.buffer as ArrayBuffer }, normalizedVecRef.current ?? undefined);
+    if (!normalizedVecRef.current) normalizedVecRef.current = normalized.vector;
+    avatarLiveFrameRef.current = { vector: new Float32Array(normalized.vector), seq: liveSeqCounterRef.current++ };
 
-    // Inference path: unsmoothed + normalized (matching extract_landmarks.py)
-    const inferenceNormalized = normalizeLandmarks(msg); latestFrameRef.current = inferenceNormalized;
-    const features = selectFeatures(inferenceNormalized.vector);
+    // Inference path: unsmoothed + normalized (matching extract_landmarks.py).
+    // Reuse scratch buffers — features are read immediately by selectFeatures.
+    const inferenceNormalized = normalizeLandmarks(msg, inferenceVecRef.current ?? undefined);
+    if (!inferenceVecRef.current) inferenceVecRef.current = inferenceNormalized.vector;
+    const features = selectFeatures(inferenceNormalized.vector, featuresVecRef.current ?? undefined);
+    if (!featuresVecRef.current) featuresVecRef.current = features;
+    latestFrameRef.current = inferenceNormalized;
     if (msg.hasRightHand) {
       const view = new Float32Array(msg.buffer);
       avatarLandmarksRef.current = view.subarray(RIGHT_HAND_OFFSET, RIGHT_HAND_OFFSET + HAND_COUNT * 3);
@@ -243,7 +259,7 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
   
   const confidence = isMobile ? CONFIDENCE_PRESETS.balanced : CONFIDENCE_PRESETS.permissive;
   
-  const { ready, error, fps, attachVideo, attachCanvas, setInferenceSize } = useHolisticPipeline(handleLandmarks, { confidence, lowPowerMode: lowPowerModeRef.current });
+  const { ready, error, fps, attachVideo, attachCanvas, setInferenceSize } = useHolisticPipeline(handleLandmarks, { confidence, lowPowerMode: lowPowerModeRef.current, active: view === "translate" });
 
   // PHASE 10 â€” live vs recorded source for the avatar.
   //

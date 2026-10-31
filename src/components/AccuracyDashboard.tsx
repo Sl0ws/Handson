@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getAccuracyLogger } from "../inference/accuracyLog";
 import type { EmissionEvent, AttemptEvent } from "../inference/accuracyLog";
@@ -115,7 +115,7 @@ function AttemptsPanel({ attempts }: { attempts: AttemptEvent[] }) {
   );
 }
 
-export function AccuracyDashboard({ show }: Props) {
+function AccuracyDashboardInner({ show }: Props) {
   const events = useEvents();
   const emissions = events.filter((e): e is EmissionEvent => e.type === "emission");
   const attempts = events.filter((e): e is AttemptEvent => e.type === "attempt");
@@ -151,3 +151,5 @@ export function AccuracyDashboard({ show }: Props) {
     </AnimatePresence>
   );
 }
+
+export const AccuracyDashboard = memo(AccuracyDashboardInner);

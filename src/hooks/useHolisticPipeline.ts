@@ -56,6 +56,13 @@ export interface HolisticPipelineOptions {
    * or the GPU delegate causes more stalls than it saves.
    */
   lowPowerMode?: boolean;
+  /**
+   * When false, detection is paused entirely (the display loop still
+   * runs so the overlay can hold/fade its last pose). Intended for
+   * views that don't need the camera (Home, Avatar, Account, etc.)
+   * so MediaPipe doesn't burn CPU cycles on inactive screens.
+   */
+  active?: boolean;
 }
 
 export function useHolisticPipeline(
@@ -165,7 +172,19 @@ export function useHolisticPipeline(
   // when the caller actually changes preset.
   const confidence = options.confidence;
   const lowPowerMode = options.lowPowerMode ?? false;
+  const active = options.active ?? true;
   lowPowerModeRef.current = lowPowerMode;
+  
+  // Track page visibility — pause detection when the tab is hidden so
+  // MediaPipe doesn't burn CPU cycles in a background tab.
+  const hiddenRef = useRef(document.hidden);
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      hiddenRef.current = document.hidden;
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
   useEffect(() => {
     let cancelled = false;
 
@@ -271,6 +290,8 @@ export function useHolisticPipeline(
       landmarker &&
       video &&
       video.readyState >= 1 &&
+      active &&
+      !hiddenRef.current &&
       (video.currentTime !== lastVideoTimeRef.current || timeBasedTrigger)
     ) {
       accumulatorRef.current -= FRAME_INTERVAL_MS;

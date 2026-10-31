@@ -118,6 +118,10 @@ export function VideoCaptureScreen({
   const abortRef = useRef<AbortController | null>(null);
   const clipIdRef = useRef(1);
   const avatarBoxRef = useRef<HTMLDivElement | null>(null);
+  // Scratch buffers so the studio pipeline doesn't allocate new
+  // Float32Arrays on every detection frame (24-30 Hz).
+  const normVecRef = useRef<Float32Array | null>(null);
+  const featVecRef = useRef<Float32Array | null>(null);
 
   const [tab, setTab] = useState<"import" | "record" | "train">("import");
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -203,8 +207,11 @@ export function VideoCaptureScreen({
 
   const handleStudioFrame = useCallback((msg: LandmarksResult) => {
     try {
-      const normalized = normalizeLandmarks(msg);
-      const features = selectFeatures(normalized.vector);
+      // Reuse scratch buffers instead of allocating per-frame.
+      const normalized = normalizeLandmarks(msg, normVecRef.current ?? undefined);
+      if (!normVecRef.current) normVecRef.current = normalized.vector;
+      const features = selectFeatures(normalized.vector, featVecRef.current ?? undefined);
+      if (!featVecRef.current) featVecRef.current = features;
       mimicRef.current = { vector: features, seq: mimicSeqRef.current++ };
 
       const rec = recordBufferRef.current;

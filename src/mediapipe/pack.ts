@@ -36,12 +36,15 @@ function writeLandmarks(
   return true;
 }
 
-/** Packs a raw HolisticLandmarkerResult into the shared flat buffer layout. */
+/** Packs a raw HolisticLandmarkerResult into the shared flat buffer layout.
+ *  If `out` is provided (an ArrayBuffer of at least TOTAL_FLOATS * 4 bytes),
+ *  it is reused instead of allocating a new one. */
 export function packHolisticResult(
   result: HolisticLandmarkerResult,
-  timestamp: number
+  timestamp: number,
+  out?: ArrayBuffer
 ): LandmarksResult {
-  const buffer = new ArrayBuffer(TOTAL_FLOATS * 4);
+  const buffer = out ?? new ArrayBuffer(TOTAL_FLOATS * 4);
   const view = new Float32Array(buffer);
 
   // Each field is one entry per detected instance (NormalizedLandmark[][]);

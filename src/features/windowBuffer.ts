@@ -47,12 +47,12 @@ export class SlidingWindowBuffer {
     return true;
   }
 
-  getWindow(): Float32Array {
-    const out = new Float32Array(this.windowSize * this.featureDim);
+  getWindow(out?: Float32Array): Float32Array {
+    const result = out ?? new Float32Array(this.windowSize * this.featureDim);
     for (let i = 0; i < this.frames.length; i++) {
-      out.set(this.frames[i], i * this.featureDim);
+      result.set(this.frames[i], i * this.featureDim);
     }
-    return out;
+    return result;
   }
 
   reset(): void {

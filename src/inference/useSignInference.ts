@@ -95,6 +95,9 @@ export function useSignInference(modelUrl: string, labels: string[], stride = DE
   // last ENSEMBLE_WINDOWS windows and decides on majority vote +
   // mean confidence + margin + debounce (see temporalEnsemble.ts).
   const ensembleRef = useRef<TemporalEnsemble | null>(null);
+  // Reusable scratch buffer for getWindow() output — read synchronously
+  // by tf.tensor() inside tf.tidy(), so reuse is safe across emissions.
+  const windowBufRef = useRef<Float32Array | null>(null);
   // The last MAX_LIVE_FRAMES packed 345-float vectors —
   // the DTW second opinion scores these against the
   // canonical recordings when the ensemble emits from a
@@ -218,7 +221,9 @@ export function useSignInference(modelUrl: string, labels: string[], stride = DE
       // per-window predict() call below leaks a GPU-backed texture, and a
       // long inference session slowly exhausts WebGL memory.
       const probs = tf.tidy(() => {
-        const input = tf.tensor(buffer.getWindow(), [1, WINDOW_SIZE, FEATURE_DIM]);
+        const windowBuf = buffer.getWindow(windowBufRef.current ?? undefined);
+        if (!windowBufRef.current) windowBufRef.current = windowBuf;
+        const input = tf.tensor(windowBuf, [1, WINDOW_SIZE, FEATURE_DIM]);
         return model.predict(input) as tf.Tensor;
       });
 

@@ -1,4 +1,5 @@
 import { Tooltip } from "./Tooltip";
+import { memo } from "react";
 import { motion } from "framer-motion";
 
 interface Props {
@@ -27,7 +28,7 @@ interface Props {
  * a neural translation — there is no parallel corpus to learn one from — so
  * the label says "English sentence" rather than "Translate".
  */
-export function SentenceOverlay({
+function SentenceOverlayInner({
   currentWords,
   currentEnglish,
   finalizedSentences,
@@ -129,3 +130,5 @@ export function SentenceOverlay({
     </div>
   );
 }
+
+export const SentenceOverlay = memo(SentenceOverlayInner);

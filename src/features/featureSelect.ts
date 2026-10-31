@@ -13,10 +13,10 @@ export const FEATURE_DIM = 21 * 3; // 63
  * landmarks (21 points * 3 coords = 63 features). This matches the
  * Kaggle FSL dataset format used to train fsl_bigru_v2_kaggle.
  */
-export function selectFeatures(vector: Float32Array): Float32Array {
-  const out = new Float32Array(63);
-  out.set(
+export function selectFeatures(vector: Float32Array, out?: Float32Array): Float32Array {
+  const result = out ?? new Float32Array(63);
+  result.set(
     new Float32Array(vector.buffer, RIGHT_HAND_OFFSET * 4, 63)
   );
-  return out;
+  return result;
 }

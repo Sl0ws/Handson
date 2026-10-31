@@ -48,9 +48,9 @@ export interface NormalizedFrame {
  * frame from the waist up but a hand is still visible) — this fallback
  * exists to prevent divide-by-zero / NaN propagation, not as a preferred path.
  */
-export function normalizeLandmarks(msg: LandmarksResult): NormalizedFrame {
+export function normalizeLandmarks(msg: LandmarksResult, out?: Float32Array): NormalizedFrame {
   const source = new Float32Array(msg.buffer);
-  const vector = new Float32Array(TOTAL_FLOATS);
+  const vector = out ?? new Float32Array(TOTAL_FLOATS);
 
   let anchor: [number, number, number];
   let scale: number;

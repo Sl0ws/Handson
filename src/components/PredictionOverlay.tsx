@@ -1,4 +1,5 @@
 import type { Prediction } from "../inference/useSignInference";
+import { memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
@@ -18,7 +19,7 @@ interface Props {
  * confidence bar below it gives a quick visual cue: lime when the
  * model is confident, sun when it wants a clearer sign.
  */
-export function PredictionOverlay({
+function PredictionOverlayInner({
   ready,
   error,
   prediction,
@@ -182,3 +183,5 @@ export function PredictionOverlay({
     </section>
   );
 }
+
+export const PredictionOverlay = memo(PredictionOverlayInner);
