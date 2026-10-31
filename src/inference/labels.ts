@@ -5,4 +5,4 @@
  * Order is a contract: index i of a prediction vector is this list's
  * i-th label. Must match label_map.json produced by training.
  */
-export const INFERENCE_LABELS: string[] = ["I", "LOVE", "YOU", "GRANDMA"];
+export const INFERENCE_LABELS: string[] = ["GRANDMA", "I", "LOVE", "YOU"];

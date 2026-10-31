@@ -16,6 +16,14 @@ const MIN_STABLE_PREDICTIONS = 2;
 // is considered finished and gets finalized.
 const SENTENCE_END_IDLE_MS = 1800;
 const MAX_FINALIZED_SENTENCES = 5;
+// Threshold (ms) between consecutive predictions to classify as "fast"
+// signing. Below this = rapid-fire signing; above = deliberate slow signing.
+const FAST_SIGNING_MAX_INTERVAL_MS = 350;
+// How many recent intervals to sample for the speed estimate.
+const SPEED_SAMPLE_WINDOW = 6;
+// When signing fast, commit after this many predictions instead of waiting
+// for stability — the mode-correction pass at finalize time cleans up noise.
+const FAST_COMMIT_MIN_PREDICTIONS = 1;
 
 /**
  * Sentence-mode layer on top of the isolated-sign classifier from
@@ -26,10 +34,16 @@ const MAX_FINALIZED_SENTENCES = 5;
  * a sign held stably above a confidence threshold, commit it as one "word"
  * once seen consistently, and use hands leaving the frame (a natural pause
  * between signs, or lowering hands at the end of a sentence) as the boundary
- * signal for when a sentence is done. Works reasonably well for signing with
- * brief natural pauses between words; will NOT correctly segment truly
- * continuous, co-articulated signing where one sign blends directly into the
- * next with no pause at all.
+ * signal for when a sentence is done.
+ *
+ * Grammar behaviour depends on signing speed:
+ *   - SLOW signing (deliberate pauses between words): each word is committed
+ *     only when it holds stably above confidence threshold — highest-accuracy
+ *     mode, one sign at a time.
+ *   - FAST signing (rapid-fire predictions, < ~350ms between them): words are
+ *     committed more aggressively, and at finalize time the sentence is run
+ *     through a mode-correction pass — the most frequent word in a cluster
+ *     replaces its neighbours, cleaning up misclassified blips.
  *
  * When a sentence is finalised the raw gloss sequence is passed through the
  * FSL grammar layer (grammarParser.ts) which canonicalises spelling, applies
@@ -42,11 +56,7 @@ const MAX_FINALIZED_SENTENCES = 5;
  *   onPrediction — call only when a genuinely NEW model prediction
  *     arrives (not every frame), drives the word-commit logic.
  *   onActivity — call every captured frame regardless of whether a new
- *     prediction arrived, drives the idle-based sentence-end check. This
- *     has to run independently of onPrediction because once hands leave
- *     frame, useSignInference stops producing new predictions entirely —
- *     if sentence-ending only happened inside onPrediction, it would
- *     never fire during the very silence it's supposed to detect.
+ *     prediction arrived, drives the idle-based sentence-end check.
  */
 export function useSentenceBuilder() {
   const [currentWords, setCurrentWords] = useState<string[]>([]);
@@ -61,6 +71,11 @@ export function useSentenceBuilder() {
   const lastActivityMsRef = useRef(0);
   const wasHandsPresentRef = useRef(false);
 
+  // Speed detection: intervals between predictions.
+  const lastPredictionTimeRef = useRef<number | null>(null);
+  const predictionIntervalsRef = useRef<number[]>([]);
+  const signingSpeedRef = useRef<"fast" | "slow">("slow");
+
   // Derive the English translation of the in-progress sentence whenever the
   // raw gloss list changes. This is NOT finalised — the grammar layer is
   // deliberately re-run on the live token list so the user sees the
@@ -74,10 +89,50 @@ export function useSentenceBuilder() {
     setCurrentEnglish(english);
   }, []);
 
+  /** Estimate signing speed from recent prediction intervals. */
+  const estimateSigningSpeed = useCallback(() => {
+    const intervals = predictionIntervalsRef.current;
+    if (intervals.length < 2) return "slow";
+    const recent = intervals.slice(-SPEED_SAMPLE_WINDOW);
+    const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+    return avg < FAST_SIGNING_MAX_INTERVAL_MS ? "fast" : "slow";
+  }, []);
+
+  /** Mode-correction pass for fast signing: replace each word with the most
+   *  frequent word in its local window, cleaning up rapid-fire misclassifications.
+   *  Slow signing passes through unchanged. */
+  const applyGrammarCorrection = useCallback(
+    (words: string[]): string[] => {
+      if (signingSpeedRef.current !== "fast" || words.length < 3) return words;
+      const out = words.slice();
+      const window = 2; // look at +/- 2 neighbours
+      for (let i = 0; i < out.length; i++) {
+        const lo = Math.max(0, i - window);
+        const hi = Math.min(out.length, i + window + 1);
+        const local = out.slice(lo, hi);
+        const counts: Record<string, number> = {};
+        for (const w of local) counts[w] = (counts[w] ?? 0) + 1;
+        let mode = local[0];
+        let modeCount = 0;
+        for (const [w, c] of Object.entries(counts)) {
+          if (c > modeCount) {
+            mode = w;
+            modeCount = c;
+          }
+        }
+        out[i] = mode;
+      }
+      return out;
+    },
+    []
+  );
+
   const finalizeSentence = useCallback(() => {
     if (currentWordsRef.current.length === 0) return;
-    const glossSentence = currentWordsRef.current.join(" ");
-    const { english, trace } = glossToEnglish(currentWordsRef.current);
+    // Apply fast-signing grammar correction before sending to the grammar layer.
+    const correctedWords = applyGrammarCorrection(currentWordsRef.current);
+    const glossSentence = correctedWords.join(" ");
+    const { english, trace } = glossToEnglish(correctedWords);
     currentWordsRef.current = [];
     setCurrentWords([]);
     setCurrentEnglish("");
@@ -87,14 +142,27 @@ export function useSentenceBuilder() {
       console.log("[grammar]", trace.join(" | "));
     }
     lastCommittedLabelRef.current = null;
-  }, []);
+  }, [applyGrammarCorrection]);
 
   const onPrediction = useCallback((prediction: Prediction, timestampMs: number) => {
+    // Track signing speed from prediction intervals.
+    if (lastPredictionTimeRef.current !== null) {
+      const interval = timestampMs - lastPredictionTimeRef.current;
+      predictionIntervalsRef.current.push(interval);
+      if (predictionIntervalsRef.current.length > SPEED_SAMPLE_WINDOW * 2) {
+        predictionIntervalsRef.current = predictionIntervalsRef.current.slice(-SPEED_SAMPLE_WINDOW);
+      }
+      signingSpeedRef.current = estimateSigningSpeed();
+    }
+    lastPredictionTimeRef.current = timestampMs;
+
     if (prediction.confidence < COMMIT_CONFIDENCE_THRESHOLD) {
       pendingLabelRef.current = null;
       pendingStableCountRef.current = 0;
       return;
     }
+
+    const isFast = signingSpeedRef.current === "fast";
 
     if (prediction.label === pendingLabelRef.current) {
       pendingStableCountRef.current += 1;
@@ -103,11 +171,10 @@ export function useSentenceBuilder() {
       pendingStableCountRef.current = 1;
     }
 
-    const isStable = pendingStableCountRef.current >= MIN_STABLE_PREDICTIONS;
+    const minStable = isFast ? FAST_COMMIT_MIN_PREDICTIONS : MIN_STABLE_PREDICTIONS;
+    const isStable = pendingStableCountRef.current >= minStable;
     // Guards against one held sign spamming the sentence with repeated
-    // commits every time it re-crosses the stability count — a new commit
-    // of the SAME label only happens after either a different label was
-    // seen in between, or hands left and re-entered frame (see onActivity).
+    // commits every time it re-crosses the stability count.
     const isNewWord = prediction.label !== lastCommittedLabelRef.current;
 
     if (isStable && isNewWord) {
@@ -117,7 +184,7 @@ export function useSentenceBuilder() {
       lastCommittedLabelRef.current = prediction.label;
       lastActivityMsRef.current = timestampMs;
     }
-  }, [refreshCurrentEnglish]);
+  }, [refreshCurrentEnglish, estimateSigningSpeed, FAST_COMMIT_MIN_PREDICTIONS, MIN_STABLE_PREDICTIONS]);
 
   const onActivity = useCallback(
     (handsPresent: boolean, timestampMs: number) => {
@@ -150,6 +217,9 @@ export function useSentenceBuilder() {
     pendingLabelRef.current = null;
     pendingStableCountRef.current = 0;
     lastCommittedLabelRef.current = null;
+    lastPredictionTimeRef.current = null;
+    predictionIntervalsRef.current = [];
+    signingSpeedRef.current = "slow";
   }, []);
 
   return {

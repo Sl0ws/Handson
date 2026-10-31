@@ -82,6 +82,64 @@
   --ease-snap: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* ========================================================================
+   DARK MODE THEME — Neo-brutalist, pleasing dark slate
+   Less oppressive than near-black: deep charcoal/slate paper with visible
+   layers, saturated-but-balanced brand colours, hard offset shadows that
+   actually read on dark surfaces. Same printed-object language as light
+   mode — hard borders, zero blur, sharp corners, no glass.
+   ======================================================================== */
+[data-theme="dark"] {
+  /* surfaces — deep charcoal slate, never pure #000 (which flattens
+     contrast with hard borders). Layers separated by ~15% lightness. */
+  --paper: #14181c;           /* page canvas — dark but visible                 */
+  --paper-raised: #1e242e;     /* cards sitting ON paper                         */
+  --paper-sunken: #0e1115;     /* wells / inset areas                            */
+
+  /* ink — light slate, readable without clinical glare. */
+  --ink: #e2e8f0;              /* primary text + border colour                   */
+  --ink-soft: #94a3b8;         /* secondary text                                 */
+  --ink-mute: #64748b;         /* tertiary/meta                                  */
+
+  /* brand — saturated, punchy on dark, not neon-harsh. */
+  --teal: #2dd4bf;             /* primary action                                 */
+  --teal-deep: #14b8a6;        /* teal text on light fills                       */
+  --coral: #fb7185;            /* translator / energy                            */
+  --lime: #bef264;             /* highlight, "ready"                             */
+  --sun: #fcd34d;              /* caution, marquee                               */
+  --purple: #a855f7;           /* avatar decorative fill                         */
+  --purple-deep: #9333ea;      /* avatar — carries white text                    */
+  --pink: #f472b6;             /* pop / secondary stickers                       */
+  --danger: #f87171;           /* errors (white text)                            */
+
+  /* structural — identical to light mode so radius/borders stay sharp. */
+  --border-w: 3px;
+  --border-w-thin: 2px;
+  --border-w-thick: 5px;
+  --radius: 4px;
+  --radius-sm: 2px;
+  --radius-pill: 999px;
+
+  /* shadows — hard offset, zero blur, near-black cast (#030712) that sits
+     BELOW the surface (darker than --paper). Reads as a physical object,
+     not disappearing into the background. */
+  --shadow-sm: 3px 3px 0 #030712;
+  --shadow: 5px 5px 0 #030712;
+  --shadow-lg: 8px 8px 0 #030712;
+  --shadow-xl: 12px 12px 0 #030712;
+  --shadow-2xl: 16px 16px 0 #030712;
+  --shadow-pressed: 1px 1px 0 #030712;
+  --shadow-none: 0 0 0 #030712;
+  --shadow-lift: 7px 7px 0 #030712;
+
+  /* type / motion — unchanged from light mode. */
+  --font-mega: "Anton", "Archivo Black", "Arial Narrow", Impact, sans-serif;
+  --font-display: "Archivo Black", "Arial Black", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --press-ms: 90ms;
+  --ease-snap: cubic-bezier(0.2, 0, 0, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --press-ms: 0ms;
@@ -166,6 +224,9 @@
   background-color: var(--paper);
   color-scheme: light;
 }
+[data-theme="dark"]:root {
+  color-scheme: dark;
+}
 
 @layer base {
   html,
@@ -181,6 +242,9 @@
        canvas stays dark navy while <body> is paper, which shows as a hard
        vertical seam on wide viewports. Backgrounds must be set on BOTH. */
     background-color: var(--paper);
+    transition:
+      background-color 0.35s ease,
+      color 0.35s ease;
   }
 
   /* Belt-and-braces against horizontal scroll from a wide child (e.g. a
@@ -207,6 +271,7 @@
     line-height: 1.6;
     letter-spacing: 0.01em;
     font-size: 16px; /* Prevents iOS zoom on focus */
+    transition: color 0.35s ease;
   }
 
   button, input { font: inherit; }
@@ -222,11 +287,47 @@
        camera surfaces, so focus stays visible on every background. */
     outline: var(--border-w) solid var(--ink);
     outline-offset: 2px;
+    transition: outline-color 0.35s ease;
   }
 
   ::selection {
     background: var(--lime);
     color: var(--ink);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   THEME TRANSITIONS
+   When dark/light mode toggles, every surface that pulls from CSS variables
+   should cross-fade instead of snapping. Applied to the printed panel system
+   and interactive primitives so the whole page re-colours smoothly.
+   -------------------------------------------------------------------------- */
+.glass,
+.glass-sm,
+.glass-card,
+.glass-pill,
+.glass-card-interactive,
+.topbar,
+.status-rail,
+.camera-frame,
+button,
+input,
+select,
+textarea {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    box-shadow 0.35s ease;
+}
+
+/* Reduced motion: kill theme transitions too. */
+@media (prefers-reduced-motion: reduce) {
+  html, body, .glass, .glass-sm, .glass-card, .glass-pill,
+  .glass-card-interactive, .topbar, .status-rail, .camera-frame,
+  button, input, select, textarea, :focus-visible {
+    transition-duration: 0.001ms !important;
+    transition-property: none !important;
   }
 }
 
@@ -679,6 +780,96 @@
 /* Focus is a hard ink ring defined in the base layer; kept as a hook. */
 .focus-ring { @apply focus:outline-none; }
 
+/* ----------------------------------------------------------------------------
+   STATUS RAIL — vertical left sidebar that sticks as the user scrolls.
+   -------------------------------------------------------------------------- */
+.status-rail {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  width: 14rem;
+  height: auto;
+  max-height: 60vh;
+  background: var(--paper-raised);
+  border-right: var(--border-w) solid var(--ink);
+  border-bottom: var(--border-w) solid var(--ink);
+  border-bottom-right-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* Text size overrides for the rail's small text. */
+[data-text-size="sm"] .status-rail { font-size: 0.875rem; }
+[data-text-size="lg"] .status-rail { font-size: 1.125rem; }
+
+[text-size="sm"] .status-rail { font-size: 0.875rem; }
+[data-hc="true"] .status-rail { border-right: var(--border-w) solid #000; }
+
+/* ---------------------------------------------------------------------------
+   MOBILE RESPONSIVE
+   On narrow screens the left rail and accessibility tab take up too much
+   horizontal space. Collapse them and let the camera/content fill the width.
+   -------------------------------------------------------------------------- */
+@media (max-width: 639px) {
+  /* Hide the status rail on mobile — status is shown inline in the UI instead */
+  .status-rail {
+    display: none !important;
+  }
+
+  /* Reduce left padding on mobile since there's no rail */
+  main {
+    padding-left: 1rem !important;
+  }
+
+  /* Accessibility controls: move to bottom-right, compact floating button */
+  section[aria-label="Accessibility settings"] {
+    position: fixed !important;
+    right: 0.75rem !important;
+    bottom: 1rem !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    z-index: 60 !important;
+  }
+
+  section[aria-label="Accessibility settings"] button[aria-label="Accessibility settings"] {
+    min-height: 44px !important;
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.875rem !important;
+    gap: 0.375rem !important;
+  }
+
+  section[aria-label="Accessibility settings"] > div {
+    min-width: 220px !important;
+    padding: 0.75rem !important;
+    margin-top: 0.5rem !important;
+  }
+
+  section[aria-label="Accessibility settings"] button {
+    min-height: 44px !important;
+    padding: 0.625rem 0.75rem !important;
+    font-size: 0.875rem !important;
+    gap: 0.5rem !important;
+  }
+
+  section[aria-label="Accessibility settings"] span[size-3] {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+  }
+
+  /* MouseFollower dots: smaller on mobile */
+  .w-4.h-4 {
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+
+  /* Prevent horizontal scroll on mobile */
+  html, body {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+}
+
 [data-text-size="sm"] { font-size: 0.875rem; line-height: 1.4; }
 [data-text-size="sm"] .hero-text { font-size: 1.75rem; }
 [data-text-size="sm"] .hero-text-xl { font-size: 1.25rem; }
@@ -724,6 +915,9 @@
 [data-hc="true"] .hs-ground,
 [data-hc="true"] .hs-dots,
 [data-hc="true"] .hs-stripes { display: none; }
+/* Dark mode: the light grid ground competes with a dark camera surface,
+   so hide it entirely. */
+[data-theme="dark"] .hs-ground { display: none; }
 /* Kill decorative rotation: it shrinks the usable box around a label. */
 [data-hc="true"] [class*="hs-rot-"] { transform: none !important; }
 [data-hc="true"] .glass { background: #ffffff; border: var(--border-w) solid #000; }

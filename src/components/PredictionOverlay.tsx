@@ -94,7 +94,7 @@ export function PredictionOverlay({
             <div className="flex flex-col items-center gap-4 text-center">
               <motion.p
                 className={`m-0 break-words hero-text font-black tracking-tight ${
-                  confident ? "text-teal-deep" : "text-sun"
+                  confident ? "text-[var(--teal-deep)]" : "text-[var(--sun)]"
                 }`}
                 transition={{ duration: 0.6 }}
               >
@@ -102,7 +102,7 @@ export function PredictionOverlay({
               </motion.p>
               <motion.span
                 className={`pill ${
-                  confident ? "bg-teal text-ink" : "bg-sun text-ink"
+                  confident ? "bg-[var(--teal)] text-[var(--ink)]" : "bg-[var(--sun)] text-[var(--ink)]"
                 }`}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -124,7 +124,7 @@ export function PredictionOverlay({
               <div className="mt-2 h-3 overflow-hidden rounded-full bg-ink/10">
                 <motion.div
                   className={`h-full rounded-full ${
-                    confident ? "bg-blue-500" : "bg-sun"
+                    confident ? "bg-[var(--teal)]" : "bg-[var(--sun)]"
                   }`}
                   initial={{ width: "0%" }}
                   animate={{ width: `${Math.round(prediction.confidence * 100)}%` }}

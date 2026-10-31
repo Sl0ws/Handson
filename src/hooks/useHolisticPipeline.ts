@@ -6,8 +6,8 @@ import { HolisticSmoother } from "../mediapipe/smoothing";
 import type { SmoothedHolisticResult } from "../mediapipe/smoothing";
 import type { LandmarksResult } from "../mediapipe/types";
 
-const TARGET_FPS = 15;
-const FRAME_INTERVAL_MS = 1000 / TARGET_FPS; // ~66.67ms
+const TARGET_FPS = 30;
+const FRAME_INTERVAL_MS = 1000 / TARGET_FPS; // ~33.33ms
 
 const MEDIAPIPE_VERSION = "0.10.20";
 const MEDIAPIPE_WASM_BASE_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;

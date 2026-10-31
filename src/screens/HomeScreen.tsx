@@ -7,7 +7,7 @@ import { BrutalLabel } from "../components/ui/BrutalLabel";
 import { EyeMascot } from "../components/mascots/EyeMascot";
 import { HandsMascot } from "../components/mascots/HandsMascot";
 import { MarqueeStrip } from "../components/MarqueeStrip";
-import { IconLogin, IconSpark } from "../components/icons";
+import { IconSpark } from "../components/icons";
 import { useAuth } from "../auth/AuthProvider";
 import type { AppView } from "../components/ui/BrutalNav";
 
@@ -278,12 +278,8 @@ function AvatarCard({ onNavigate }: { onNavigate: (v: AppView) => void }) {
    ------------------------------------------------------------------------ */
 function Hero({
   firstName,
-  signedIn,
-  onAccount,
 }: {
   firstName: string | null;
-  signedIn: boolean;
-  onAccount: () => void;
 }) {
   return (
     <section className="relative z-0 mb-9 grid grid-cols-1 gap-x-10 sm:mb-12 lg:grid-cols-[minmax(0,1fr)_320px]" aria-labelledby="hero-title">
@@ -306,13 +302,7 @@ function Hero({
           column and a graphic column. `grid` (not flex) so the graphic column
           keeps a real width the type can be measured against; the type column
           takes the remainder. */}
-      <header className="col-span-full mb-6 flex items-start justify-between gap-3 sm:mb-8">
-        <Wordmark className="hs-rot-neg1 text-2xl sm:text-3xl" />
-        <BrutalButton tone="paper" size="sm" onClick={onAccount} className="shrink-0">
-          <IconLogin className="h-4 w-4" aria-hidden />
-          {signedIn ? "Account" : "Log in"}
-        </BrutalButton>
-      </header>
+      <header className="col-span-full mb-6 sm:mb-8" />
 
       {/* LEFT COLUMN — type, then supporting copy. */}
       <div className="min-w-0">
@@ -448,8 +438,6 @@ export function HomeScreen({ onNavigate, modelReady, modelError }: HomeScreenPro
     <div className="mx-auto w-full max-w-3xl px-4 pb-4 sm:px-6">
       <Hero
         firstName={firstName}
-        signedIn={Boolean(user)}
-        onAccount={() => onNavigate("account")}
       />
 
       <MarqueeStrip />

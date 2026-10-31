@@ -4,8 +4,9 @@ import { CameraPreview } from "./components/CameraPreview";
 import { PredictionOverlay } from "./components/PredictionOverlay";
 import { AccuracyDashboard } from "./components/AccuracyDashboard";
 import { SentenceOverlay } from "./components/SentenceOverlay";
-import { StatusBar } from "./components/StatusBar";
-import { AccessibilityControls } from "./components/AccessibilityControls";
+import { SettingsModal } from "./components/SettingsModal";
+import { TopNavBar } from "./components/TopNavBar";
+import { MouseFollower } from "./components/MouseFollower";
 import { Autocomplete } from "./components/Autocomplete";
 import { GlossDisplay } from "./components/GlossDisplay";
 import SignAvatar from "./components/SignAvatar";
@@ -62,10 +63,10 @@ const CAPTURE_KEY = "capture";
 const DEBUG_FEATURES = false;
 const FEATURE_DEBUG_INTERVAL_MS = 1000;
 /** Live inference is trained on 8 FPS decimated data (16-frame window =
- *  2.0 s of real motion). Gate the tf.js pushes to ~8 Hz regardless of
- *  capture rate so the model sees training-matched temporal scale even
- *  when HolisticLandmarker runs at 24-30 fps. */
-const INFERENCE_SAMPLE_INTERVAL_MS = 125;
+ *  2.0 s of real motion). Gate the tf.js pushes to 30 Hz so the model sees
+ *  training-matched temporal scale at full camera rate. On low-end devices
+ *  the resolution tier downgrades (not the FPS) to keep 30 FPS. */
+const INFERENCE_SAMPLE_INTERVAL_MS = 33;
 
 
 interface ResolutionTier {
@@ -81,7 +82,7 @@ const RESOLUTION_TIERS: readonly ResolutionTier[] = [
    { width: 320, height: 240, inferenceWidth: 160, inferenceHeight: 120 },
  ];
 
-const FPS_DOWNGRADE_THRESHOLD = 8;
+const FPS_DOWNGRADE_THRESHOLD = 25;
 const LOW_FPS_SAMPLE_INTERVAL_MS = 800;
 const LOW_FPS_CONSECUTIVE_SAMPLES = 5;
 
@@ -125,6 +126,13 @@ function HandSonApp() {
   const [highContrast, setHighContrast] = useState(false);
   const [showAvatar, setShowAvatar] = useState(true);
   const [lowPowerMode, setLowPowerMode] = useState(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem("handson-theme");
+    if (saved) return saved === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const avatarLandmarksRef = useRef<Float32Array | null>(null);
   // PHASE 31: hands included, matching the recorded path in dataLoader.ts. Live
 // capture is the noisiest source of hand landmarks (webcam tracking), and the
@@ -147,12 +155,27 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
     window.addEventListener("online", onOnline);
     window.addEventListener("offline-change", onSwOffline);
     return () => {
-      window.removeEventListener("offline", onOffline);
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline-change", onSwOffline);
+    window.removeEventListener("offline", onOffline);
+    window.removeEventListener("online", onOnline);
+    window.removeEventListener("offline-change", onSwOffline);
     };
   }, []);
-   const inference = useSignInference("/models/fsl_model/model.json", INFERENCE_LABELS);
+
+  // Apply dark mode class to document element and persist preference.
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+    try {
+      localStorage.setItem("handson-theme", darkMode ? "dark" : "light");
+    } catch {}
+  }, [darkMode]);
+   const inference = useSignInference(
+  "/models/fsl_model_tfjs/model.json",
+  INFERENCE_LABELS
+);
   const sentenceBuilder = useSentenceBuilder();
   const inferencePushRef = useRef(inference.pushFrame); inferencePushRef.current = inference.pushFrame;
   const lastInferencePushRef = useRef(0);
@@ -265,10 +288,7 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
     if (lowFpsCountRef.current >= LOW_FPS_CONSECUTIVE_SAMPLES) {
       lowFpsCountRef.current = 0;
       setTierIndex((i) => Math.min(i + 1, RESOLUTION_TIERS.length - 1));
-      // If we've hit the lowest tier and FPS is still bad, switch to low power mode
-      if (tierIndex >= RESOLUTION_TIERS.length - 1 && fps < FPS_DOWNGRADE_THRESHOLD / 2) {
-        lowPowerModeRef.current = true;
-      }
+      // Stay at the lowest resolution tier — do not reduce FPS below 30.
     }
   }, [fps, tierIndex]);
 
@@ -284,17 +304,23 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
           This is what replaced the ambient-glow/glassmorphism treatment. */}
       <div className="hs-ground" aria-hidden="true" />
 
-      <StatusBar
-        items={[
-          { label: "Camera", ready, error },
-          { label: "Model", ready: inference.ready, error: inference.error },
-          { label: `Tier ${tierIndex + 1}/${RESOLUTION_TIERS.length}`, ready: true, tooltip: `Resolution tier ${tierIndex + 1} of ${RESOLUTION_TIERS.length}. Auto-downgrades when fps stays below ${FPS_DOWNGRADE_THRESHOLD} for ${LOW_FPS_CONSECUTIVE_SAMPLES}s.${tierInferenceSize ? " Inference downscale " + tierInferenceSize.width + "x" + tierInferenceSize.height : " No inference downscale."}${lowPowerModeRef.current ? " Low-power mode: CPU delegate, adaptive frame skip." : ""}` },
-        ]}
+      <TopNavBar
+        view={view}
+        cameraReady={ready}
+        cameraError={error}
+        modelReady={inference.ready}
+        modelError={inference.error}
+        tierIndex={tierIndex}
+        tierLength={RESOLUTION_TIERS.length}
         fps={fps}
         offline={offline}
+        onNavigate={setView}
+        onGoHome={() => setView("home")}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
+      <MouseFollower enabled={!lowPowerMode} />
 
-      {/* pb-28 reserves room so the fixed bottom nav never covers content. */}
+      {/* pb-safe reserves room so the fixed bottom nav never covers content. */}
       <main className="relative mx-auto max-w-6xl px-3 pb-28 pt-4 sm:px-6 pb-safe">
         <AnimatePresence mode="wait">
         {view === "home" && (
@@ -491,16 +517,6 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
             <VideoCaptureScreen onNavigate={setView} />
           </motion.div>
         )}
-        <div className="mt-6 flex justify-end">
-        <AccessibilityControls
-          textSize={textSize}
-          onTextSize={setTextSize}
-          highContrast={highContrast}
-          onHighContrast={setHighContrast}
-          lowPowerMode={lowPowerMode}
-          onLowPowerMode={setLowPowerMode}
-        />
-        </div>
 
         {/* No auth sub-screen here any more: HandSonApp only mounts for a
             signed-in user, so Account always shows the real profile. */}
@@ -510,6 +526,19 @@ const landmarkSmootherRef = useRef(new LandmarkSmoother(3, true, true));
         </AnimatePresence>
         <BrutalNav active={view} onNavigate={setView} />
       </main>
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        textSize={textSize}
+        onTextSize={setTextSize}
+        highContrast={highContrast}
+        onHighContrast={setHighContrast}
+        lowPowerMode={lowPowerMode}
+        onLowPowerMode={setLowPowerMode}
+        darkMode={darkMode}
+        onDarkMode={setDarkMode}
+      />
 
       {/* FIRST-RUN TOUR — mounted AFTER <main> on purpose.
           The UI gate's global mascot scan reads

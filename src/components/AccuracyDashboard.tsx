@@ -39,7 +39,7 @@ function EmissionsPanel({ emissions }: { emissions: EmissionEvent[] }) {
               <div key={`${e.t}-${e.label}`} className="flex items-center gap-2 text-xs">
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
-                    e.confidence >= 0.7 ? "bg-teal" : e.confidence >= 0.4 ? "bg-sun" : "bg-coral"
+                    e.confidence >= 0.7 ? "bg-[var(--teal)]" : e.confidence >= 0.4 ? "bg-[var(--sun)]" : "bg-[var(--coral)]"
                   }`}
                   aria-hidden="true"
                 />

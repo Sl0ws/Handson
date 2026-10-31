@@ -67,9 +67,11 @@ export const MAX_FRAME_JUMP = 1.0;
  *  Reduced from 6 to 4 for faster rest-state transitions. */
 export const REST_FRAME_THRESHOLD = 4;
 
-/** Offsets of the two hand groups in a selectFeatures() output. */
-const LEFT_HAND_START = 99;
-const RIGHT_HAND_START = 162;
+/** Offsets of the two hand groups in a selectFeatures() output.
+ *  selectFeatures() returns right-hand-only landmarks (63 floats),
+ *  so the right hand starts at offset 0; there is no left hand. */
+const LEFT_HAND_START = -1;
+const RIGHT_HAND_START = 0;
 const HAND_COUNT = 21;
 
 /** Max distance from a hand group's centroid to any landmark. */
@@ -100,7 +102,9 @@ export function handGroupSpread(
   return Math.sqrt(maxSq);
 }
 
-/** Centroid-to-centroid hand displacement between two frames. */
+/** Centroid-to-centroid hand displacement between two frames.
+ *  selectFeatures() output is right-hand-only, so we only track
+ *  the right hand (offset 0). */
 function handMotion(
   prev: ArrayLike<number>,
   cur: ArrayLike<number>
@@ -113,13 +117,9 @@ function handMotion(
     }
     return [x / HAND_COUNT, y / HAND_COUNT, z / HAND_COUNT];
   };
-  let sum = 0;
-  for (const start of [LEFT_HAND_START, RIGHT_HAND_START]) {
-    const a = centroid(prev, start);
-    const b = centroid(cur, start);
-    sum += Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-  }
-  return sum;
+  const a = centroid(prev, RIGHT_HAND_START);
+  const b = centroid(cur, RIGHT_HAND_START);
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
 
 export class FrameQualityGate {
@@ -133,7 +133,7 @@ export class FrameQualityGate {
   evaluate(frame: Float32Array): FrameQuality {
     const issues: string[] = [];
 
-    const leftSpread = handGroupSpread(frame, LEFT_HAND_START);
+    const leftSpread = LEFT_HAND_START >= 0 ? handGroupSpread(frame, LEFT_HAND_START) : 0;
     const rightSpread = handGroupSpread(frame, RIGHT_HAND_START);
     const leftPresent = leftSpread >= MIN_HAND_SPREAD;
     const rightPresent = rightSpread >= MIN_HAND_SPREAD;

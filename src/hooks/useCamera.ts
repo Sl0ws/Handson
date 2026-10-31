@@ -87,12 +87,12 @@ export function useCamera(options: UseCameraOptions = {}): UseCameraReturn {
           width: { ideal: width },
           height: { ideal: height },
           facingMode,
-          // Cap the source frame rate so we're not decoding high-FPS frames
-          // just to throw most of them away downstream. Low-power mode caps
-          // even harder for cheap devices.
+          // Cap the source frame rate at 30 FPS so we're not decoding
+          // frames faster than the detection loop can consume them.
+          // Low-power mode caps lower for cheap devices.
           frameRate: lowPowerMode
-            ? { ideal: 10, max: 15 }
-            : { ideal: 15, max: 20 },
+            ? { ideal: 15, max: 20 }
+            : { ideal: 30, max: 30 },
         },
         audio: false,
       });

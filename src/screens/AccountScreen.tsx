@@ -1,7 +1,7 @@
 import { BrutalButton } from "../components/ui/BrutalButton";
 import { BrutalCard } from "../components/ui/BrutalCard";
 import { BrutalBadge } from "../components/ui/BrutalBadge";
-import { IconLogout, IconCamera, IconCubeHand, IconSpark } from "../components/icons";
+import { IconCamera, IconCubeHand, IconSpark } from "../components/icons";
 import { useAuth } from "../auth/AuthProvider";
 import type { AppView } from "../components/ui/BrutalNav";
 
@@ -26,7 +26,7 @@ function formatDate(ts: number): string {
  * the gate in App.tsx means this screen only mounts when `user` exists.
  */
 export function AccountScreen({ onNavigate, onReplayTour }: { onNavigate: (v: AppView) => void; onReplayTour?: () => void }) {
-  const { user, signOut, service } = useAuth();
+  const { user, service } = useAuth();
 
   if (!user) {
     // Transient only: a sign-out can land here between this render and the
@@ -69,10 +69,7 @@ export function AccountScreen({ onNavigate, onReplayTour }: { onNavigate: (v: Ap
         </div>
 
         <div className="mt-5">
-          <BrutalButton tone="ink" size="md" block onClick={() => void signOut()}>
-            <IconLogout className="h-4 w-4" aria-hidden />
-            Log out
-          </BrutalButton>
+          {/* Logout is now handled via the profile dropdown on the home screen */}
         </div>
       </BrutalCard>
 
